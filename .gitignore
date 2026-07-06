@@ -1,0 +1,6 @@
+01-secrets.yaml
+*.secret
+*.key
+.env
+.env.*
+!.env.example

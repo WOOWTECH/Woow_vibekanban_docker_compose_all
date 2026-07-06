@@ -1,0 +1,15 @@
+NAME                             READY   STATUS    RESTARTS        AGE   IP            NODE                                                      NOMINATED NODE   READINESS GATES
+vk-cloudflared-8c7d94dc7-lwzk6   1/1     Running   0               23h   10.42.8.153   woowtechcluster8                                          <none>           <none>
+vk-db-797576d855-sl754           1/1     Running   1 (7h53m ago)   23h   10.42.0.2     woowtechcluster1-aorus-15p-xd                             <none>           <none>
+vk-electric-58b559f886-fl7h2     1/1     Running   1 (7h53m ago)   23h   10.42.0.12    woowtechcluster1-aorus-15p-xd                             <none>           <none>
+vk-host-7cd49c484d-7ghws         1/1     Running   1 (7h53m ago)   22h   10.42.0.10    woowtechcluster1-aorus-15p-xd                             <none>           <none>
+vk-relay-85f989bff4-4gxhl        1/1     Running   1 (7h53m ago)   23h   10.42.0.7     woowtechcluster1-aorus-15p-xd                             <none>           <none>
+vk-remote-59dff84b-q9cnj         1/1     Running   1 (7h53m ago)   23h   10.42.0.6     woowtechcluster1-aorus-15p-xd                             <none>           <none>
+vk-terminal-6d76c74f4f-f6wdj     1/1     Running   0               23h   10.42.3.180   woowtech-ai-coder-asus-tuf-gaming-f15-fx507zu4-fx507zu4   <none>           <none>
+NAME              TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+vk-db-svc         ClusterIP   10.43.63.117    <none>        5432/TCP   25h
+vk-electric-svc   ClusterIP   10.43.147.155   <none>        3000/TCP   25h
+vk-host-svc       ClusterIP   10.43.131.208   <none>        3000/TCP   25h
+vk-relay-svc      ClusterIP   10.43.1.180     <none>        8082/TCP   25h
+vk-remote-svc     ClusterIP   10.43.168.145   <none>        8081/TCP   25h
+vk-terminal-svc   ClusterIP   10.43.154.36    <none>        7681/TCP   23h

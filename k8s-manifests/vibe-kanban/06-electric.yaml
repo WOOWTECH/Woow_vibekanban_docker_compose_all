@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vk-electric
+  namespace: vibe-kanban
+  labels:
+    app: vk-electric
+    app.kubernetes.io/component: sync-engine
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vk-electric
+  template:
+    metadata:
+      labels:
+        app: vk-electric
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: woowtechcluster1-aorus-15p-xd
+      initContainers:
+        - name: wait-for-remote
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for remote-server to complete migrations..."
+              until wget --spider -q http://vk-remote-svc:8081/v1/health 2>/dev/null; do
+                echo "  remote-server not ready, retrying in 3s..."
+                sleep 3
+              done
+              echo "Remote server is ready (migrations complete, electric_sync role created)!"
+      containers:
+        - name: electric
+          image: electricsql/electric:1.4.13
+          workingDir: /app
+          env:
+            - name: ELECTRIC_ROLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vk-secrets
+                  key: ELECTRIC_ROLE_PASSWORD
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vk-secrets
+                  key: ELECTRIC_DATABASE_URL
+            - name: PG_PROXY_PORT
+              value: "65432"
+            - name: LOGICAL_PUBLISHER_HOST
+              value: "vk-electric"
+            - name: AUTH_MODE
+              value: "insecure"
+            - name: ELECTRIC_INSECURE
+              value: "true"
+            - name: ELECTRIC_MANUAL_TABLE_PUBLISHING
+              value: "true"
+            - name: ELECTRIC_USAGE_REPORTING
+              value: "false"
+            - name: ELECTRIC_FEATURE_FLAGS
+              value: "allow_subqueries,tagged_subqueries"
+          ports:
+            - containerPort: 3000
+              name: http
+          volumeMounts:
+            - name: electric-data
+              mountPath: /app/persistent
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: electric-data
+          persistentVolumeClaim:
+            claimName: vk-electric-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vk-electric-svc
+  namespace: vibe-kanban
+  labels:
+    app: vk-electric
+spec:
+  selector:
+    app: vk-electric
+  ports:
+    - name: http
+      protocol: TCP
+      port: 3000
+      targetPort: 3000
+  type: ClusterIP

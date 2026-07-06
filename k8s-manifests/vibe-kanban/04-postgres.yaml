@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vk-db
+  namespace: vibe-kanban
+  labels:
+    app: vk-db
+    app.kubernetes.io/component: database
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vk-db
+  template:
+    metadata:
+      labels:
+        app: vk-db
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: woowtechcluster1-aorus-15p-xd
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          args: ["-c", "wal_level=logical"]
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              value: "remote"
+            - name: POSTGRES_USER
+              value: "remote"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vk-secrets
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: "/var/lib/postgresql/data/pgdata"
+          volumeMounts:
+            - name: db-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "remote", "-d", "remote"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "remote", "-d", "remote"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: db-data
+          persistentVolumeClaim:
+            claimName: vk-db-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vk-db-svc
+  namespace: vibe-kanban
+  labels:
+    app: vk-db
+spec:
+  selector:
+    app: vk-db
+  ports:
+    - name: postgres
+      protocol: TCP
+      port: 5432
+      targetPort: 5432
+  type: ClusterIP
