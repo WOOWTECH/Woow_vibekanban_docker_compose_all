@@ -84,6 +84,14 @@ if [ ! -f "$BIN/opencode" ]; then
 fi
 echo "  OpenCode: $($BIN/opencode --version 2>&1 || $HOME/.opencode/bin/opencode --version 2>&1)"
 
+# --- [6.5] OfficeCLI ---
+echo "[6.5/7] OfficeCLI..."
+if [ ! -f "$BIN/officecli" ]; then
+  curl -sL "https://github.com/iOfficeAI/OfficeCLI/releases/download/v1.0.135/officecli-linux-x64" \
+    -o "$BIN/officecli" && chmod +x "$BIN/officecli"
+fi
+echo "  OfficeCLI: $($BIN/officecli --version 2>&1)"
+
 # --- [7] .NET Runtime ---
 echo "[7/7] .NET Runtime..."
 if [ ! -f "$TOOLS/dotnet/dotnet" ]; then
