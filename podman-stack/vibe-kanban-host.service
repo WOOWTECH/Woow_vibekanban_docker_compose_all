@@ -1,0 +1,14 @@
+[Unit]
+Description=vibe-kanban host (native, self-hosted remote/relay)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/vibe-kanban-stack/run-host.sh
+Restart=always
+RestartSec=5
+# linger 已開,登出後仍持續
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,101 @@
+# vibe-kanban 單機自架 remote 架構(rootless podman + podman-compose)
+# 來源:官方 crates/remote/docker-compose.yml + docs/self-hosting/deploy-docker.mdx
+#       @ tag v0.1.43-20260417125614(BloopAI/vibe-kanban,Apache-2.0)
+# 單機改法:無 caddy(TLS 由 Cloudflare edge 終結)、只 bind 127.0.0.1、
+#           image 預先由 build-images-v2.sh build 好、restart: always。
+# 密鑰與 PUBLIC_BASE_URL 由同目錄 .env 提供(600,見 .env.example)。
+# 若要開放 LAN:把兩處 127.0.0.1 改 0.0.0.0,down 後用 start.sh 重起(見 SKILL.md)。
+# ⚠️ 啟動一律用 start.sh,不要裸 `podman-compose up -d`——podman-compose 1.0.6 的
+#    healthcheck 依賴條件不可靠,electric 若先於 remote-server 起會炸 electric_sync。
+# 對外 publish port 吃 .env 的 REMOTE_PORT/RELAY_PORT(預設 8081/8082);
+# 容器內固定 8081/8082,healthcheck 與 LISTEN_ADDR 不需改。
+
+services:
+  remote-db:
+    image: postgres:16-alpine
+    command: ["postgres", "-c", "wal_level=logical"]   # Electric 硬性需求(logical replication)
+    restart: always
+    environment:
+      POSTGRES_DB: remote
+      POSTGRES_USER: remote
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - remote-db-data:/var/lib/postgresql/data        # named volume(rootless bind mount 會有權限雷)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U remote -d remote"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  remote-server:
+    image: localhost/vibe-kanban-remote:${IMAGE_TAG:-0.1.43-local-v1}
+    restart: always
+    depends_on:
+      remote-db:
+        condition: service_healthy
+    environment:
+      RUST_LOG: info,remote=info
+      SERVER_DATABASE_URL: postgres://remote:${DB_PASSWORD}@remote-db:5432/remote
+      SERVER_LISTEN_ADDR: 0.0.0.0:8081
+      ELECTRIC_URL: http://electric:3000
+      ELECTRIC_ROLE_PASSWORD: ${ELECTRIC_ROLE_PASSWORD}
+      SERVER_PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      VIBEKANBAN_REMOTE_JWT_SECRET: ${VIBEKANBAN_REMOTE_JWT_SECRET}   # base64, decode >= 32 bytes
+      SELF_HOST_LOCAL_AUTH_EMAIL: ${SELF_HOST_LOCAL_AUTH_EMAIL}
+      SELF_HOST_LOCAL_AUTH_PASSWORD: ${SELF_HOST_LOCAL_AUTH_PASSWORD}
+      # OAuth 全留空 = 純 localAuth(兩者皆無會 CrashLoop: no OAuth providers configured)
+    ports:
+      - "0.0.0.0:${REMOTE_PORT:-8081}:8081"   # 2026-07-06: LAN+tailnet+localhost 全開(CF tunnel 由 192.168.2.253 打進來)
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8081/v1/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  electric:
+    image: electricsql/electric:1.4.13
+    working_dir: /app
+    restart: always
+    environment:
+      # 連的是 electric_sync role(remote-server 首啟 migration 建立),不是 remote
+      DATABASE_URL: postgresql://electric_sync:${ELECTRIC_ROLE_PASSWORD}@remote-db:5432/remote?sslmode=disable
+      PG_PROXY_PORT: "65432"
+      LOGICAL_PUBLISHER_HOST: electric
+      AUTH_MODE: insecure
+      ELECTRIC_INSECURE: "true"
+      ELECTRIC_MANUAL_TABLE_PUBLISHING: "true"
+      ELECTRIC_USAGE_REPORTING: "false"
+      ELECTRIC_FEATURE_FLAGS: allow_subqueries,tagged_subqueries
+    volumes:
+      - electric-data:/app/persistent
+    depends_on:
+      remote-db:
+        condition: service_healthy
+      remote-server:                # 關鍵順序:必須等 remote-server 跑完 migration + 設 electric_sync 密碼
+        condition: service_healthy
+
+  relay-server:
+    image: localhost/vibe-kanban-relay:${IMAGE_TAG:-0.1.43-local-v1}
+    restart: always
+    depends_on:
+      remote-db:
+        condition: service_healthy
+    environment:
+      RUST_LOG: info
+      SERVER_DATABASE_URL: postgres://remote:${DB_PASSWORD}@remote-db:5432/remote   # relay 直連同一 DB(不是打 remote API)
+      RELAY_LISTEN_ADDR: 0.0.0.0:8082
+      VIBEKANBAN_REMOTE_JWT_SECRET: ${VIBEKANBAN_REMOTE_JWT_SECRET}   # 必須與 remote-server 同值,否則 Jwt(InvalidSignature) 401
+    ports:
+      - "0.0.0.0:${RELAY_PORT:-8082}:8082"    # 2026-07-06: LAN+tailnet+localhost 全開(CF tunnel 由 192.168.2.253 打進來)
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8082/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  remote-db-data:
+  electric-data:
