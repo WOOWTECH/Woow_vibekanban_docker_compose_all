@@ -32,6 +32,16 @@
 
 ---
 
+> **⚠️ Branch `podman-ubuntu` — hybrid host + rootless podman deployment.**
+>
+> The Vibe Kanban host binary (Claude Code + OpenCode + **openchamber**) runs **directly on the Ubuntu host** via `systemd --user`; only `remote-server`, `relay-server`, `electric`, and `remote-db` run in rootless podman.
+>
+> **No ttyd, no kubectl.** Shell entry is host OpenSSH; then `systemctl --user status vibe-kanban-host openchamber` for host services and `podman exec` for containers.
+>
+> Install: `podman-stack/install-host-tools.sh` (9-step, idempotent). Services: `podman-stack/vibe-kanban-host.service`, `podman-stack/openchamber.service`. Sections below still describe the K3s deployment on `main` — apply mentally to the podman split, or use the `main` branch for K3s.
+
+---
+
 ## Overview
 
 A production-ready, fully containerized deployment of [Vibe Kanban](https://github.com/BloopAI/vibe-kanban) on K3s / Kubernetes. All 7 services run in a single `vibe-kanban` namespace with a dedicated Cloudflare Tunnel for external access.

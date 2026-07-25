@@ -7,7 +7,7 @@ set -euo pipefail
 TOOLS="${HOME}/.vibe-kanban-tools"
 BIN="$TOOLS/bin"
 VENV="$TOOLS/venv"
-MARKER="$TOOLS/.installed-v2"
+MARKER="$TOOLS/.installed-v3"
 
 if [ -f "$MARKER" ]; then
   echo "[SKIP] All tools already installed. Delete $MARKER to force re-install"
@@ -18,11 +18,11 @@ echo "Installing CLI tools to $TOOLS"
 mkdir -p "$BIN" "$TOOLS/dotnet" "$TOOLS/pw-browsers"
 
 # uv
-echo "[1/8] uv..."
+echo "[1/9] uv..."
 [ -f "$BIN/uv" ] || curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$BIN" sh
 
 # ffmpeg static
-echo "[2/8] ffmpeg..."
+echo "[2/9] ffmpeg..."
 if [ ! -f "$BIN/ffmpeg" ]; then
   curl -sL "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz" | \
     tar -xJ --strip-components=1 -C /tmp --wildcards '*/ffmpeg' '*/ffprobe'
@@ -30,7 +30,7 @@ if [ ! -f "$BIN/ffmpeg" ]; then
 fi
 
 # ripgrep
-echo "[3/8] ripgrep..."
+echo "[3/9] ripgrep..."
 if ! command -v rg &>/dev/null && [ ! -f "$BIN/rg" ]; then
   curl -sL "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz" | \
     tar -xz --strip-components=1 -C /tmp ripgrep-14.1.1-x86_64-unknown-linux-musl/rg
@@ -38,7 +38,7 @@ if ! command -v rg &>/dev/null && [ ! -f "$BIN/rg" ]; then
 fi
 
 # Python venv via uv
-echo "[4/8] Python venv (90+ packages)..."
+echo "[4/9] Python venv (90+ packages)..."
 [ -f "$VENV/bin/python3" ] || "$BIN/uv" venv "$VENV" --python 3.12
 "$BIN/uv" pip install --python "$VENV/bin/python3" \
   anthropic openai mcp httpx requests aiohttp websockets \
@@ -53,25 +53,39 @@ echo "[4/8] Python venv (90+ packages)..."
   markupsafe pygments numpy pandas
 
 # Playwright Chromium
-echo "[5/8] Playwright..."
+echo "[5/9] Playwright..."
 PLAYWRIGHT_BROWSERS_PATH="$TOOLS/pw-browsers" "$VENV/bin/python3" -m playwright install chromium
 
 # OpenCode
-echo "[6/8] OpenCode..."
+echo "[6/9] OpenCode..."
 if [ ! -f "$BIN/opencode" ]; then
   curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
   cp "$HOME/.opencode/bin/opencode" "$BIN/opencode" 2>/dev/null || true
 fi
 
 # .NET Runtime
-echo "[7/8] .NET Runtime..."
+echo "[7/9] .NET Runtime..."
 [ -f "$TOOLS/dotnet/dotnet" ] || curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin \
   --channel 8.0 --runtime dotnet --install-dir "$TOOLS/dotnet" --no-path
 
 # OfficeCLI
-echo "[8/8] OfficeCLI..."
+echo "[8/9] OfficeCLI..."
 [ -f "$BIN/officecli" ] || curl -sL "https://github.com/iOfficeAI/OfficeCLI/releases/download/v1.0.135/officecli-linux-x64" \
   -o "$BIN/officecli" && chmod +x "$BIN/officecli"
+
+# openchamber (bun-based AI CLI, shared config with claude-code + opencode)
+echo "[9/9] openchamber..."
+if [ ! -f "$BIN/openchamber" ]; then
+  if ! command -v bun &>/dev/null && [ ! -f "$BIN/bun" ]; then
+    curl -fsSL https://bun.sh/install | env BUN_INSTALL="$TOOLS/bun" bash -s -- --no-modify-path
+    ln -sfn "$TOOLS/bun/bin/bun" "$BIN/bun"
+  fi
+  BUN="${BIN}/bun"
+  [ -x "$BUN" ] || BUN="$(command -v bun)"
+  "$BUN" install -g openchamber || true
+  # openchamber installs into ~/.bun/bin; symlink into $BIN for uniform PATH
+  ln -sfn "$HOME/.bun/bin/openchamber" "$BIN/openchamber" 2>/dev/null || true
+fi
 
 echo ""
 echo "Done! Add to ~/.bashrc:"
